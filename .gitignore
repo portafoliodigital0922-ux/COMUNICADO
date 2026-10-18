@@ -1,0 +1,13 @@
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Herramientas
+node_modules/
+*.log
+
+# Protección de datos: no subir comunicados ni listas de estudiantes reales
+*.pdf
+*.xlsx
+*.csv
+listas/

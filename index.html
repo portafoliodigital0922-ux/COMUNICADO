@@ -1,0 +1,995 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Comunicados Académicos</title>
+<meta name="description" content="Genera comunicados formales de desempeño estudiantil y descárgalos en PDF.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;700&family=Bricolage+Grotesque:wght@600;700&family=Public+Sans:wght@400;500;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{color-scheme:light}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+/* Diseño: formulario en tres pasos a la izquierda y la hoja del comunicado en vivo a la derecha (fija al desplazar).
+   En móvil la hoja pasa debajo y una barra inferior mantiene el botón de PDF siempre a mano. */
+:root{
+  --bg:#EDF0F3; --surface:#FFFFFF; --surface-2:#F4F6F8; --ink:#14202B; --ink-2:#4B5A67; --line:#D3DAE0;
+  --accent:#0F5B66; --accent-ink:#FFFFFF; --accent-soft:#DDEEF0;
+  --c1:#B3261E; --c1-soft:#FBE4E2; --c2:#8E5400; --c2-soft:#FBEBD0; --c3:#365A8C; --c3-soft:#E1E9F4;
+  --ok:#1E7A46; --ok-soft:#DDF1E5;
+  --paper:#FFFFFF; --paper-ink:#111418; --paper-mute:#7C8791; --paper-line:#8C969F; --paper-head:#ECEFF2;
+  --shadow:0 1px 2px rgba(20,32,43,.08),0 10px 28px rgba(20,32,43,.10);
+  --font-ui:'Public Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --font-display:'Bricolage Grotesque','Public Sans',system-ui,sans-serif;
+  --font-doc:'Arimo',Arial,Helvetica,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1418; --surface:#162026; --surface-2:#1C2830; --ink:#E7EDF1; --ink-2:#9DAEBB; --line:#2B3943;
+    --accent:#5CC3CF; --accent-ink:#06262B; --accent-soft:#123940;
+    --c1:#FF8A80; --c1-soft:#3A1C1A; --c2:#F2B35C; --c2-soft:#3A2A10; --c3:#8FB1E6; --c3-soft:#1B2A40;
+    --ok:#6FD39A; --ok-soft:#14301F;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.45);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1418; --surface:#162026; --surface-2:#1C2830; --ink:#E7EDF1; --ink-2:#9DAEBB; --line:#2B3943;
+  --accent:#5CC3CF; --accent-ink:#06262B; --accent-soft:#123940;
+  --c1:#FF8A80; --c1-soft:#3A1C1A; --c2:#F2B35C; --c2-soft:#3A2A10; --c3:#8FB1E6; --c3-soft:#1B2A40;
+  --ok:#6FD39A; --ok-soft:#14301F;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.45);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--font-ui);font-size:15px;line-height:1.5;
+  padding-block:24px 32px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+}
+.wrap{max-width:1240px;margin:0 auto}
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;margin-bottom:20px}
+.top h1{font-family:var(--font-display);font-size:clamp(26px,4vw,34px);line-height:1.1;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.top p{margin:6px 0 0;color:var(--ink-2);max-width:60ch}
+.layout{display:grid;grid-template-columns:minmax(0,1fr);gap:24px;align-items:start}
+.col-form{display:flex;flex-direction:column;gap:16px;min-width:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;min-width:0}
+.panel h2{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-size:19px;margin:0 0 16px;line-height:1.2}
+.step{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font:700 13px var(--font-ui)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.span2{grid-column:1/-1}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+label,.lbl{font-size:13px;font-weight:600;color:var(--ink-2);letter-spacing:.01em}
+.opt{font-weight:400;color:var(--ink-2)}
+input[type=text],input[type=date],input[type=time],select,textarea{
+  width:100%;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);
+  border-radius:8px;padding:9px 11px;min-height:42px;
+}
+textarea{resize:vertical;min-height:84px;line-height:1.45}
+input:disabled{background:var(--surface-2);color:var(--ink-2)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.invalid{border-color:var(--c1)!important;box-shadow:0 0 0 3px var(--c1-soft)}
+.rowline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+.two{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:10px}
+.switch{display:inline-flex;align-items:center;gap:8px;font-weight:500;font-size:13px;color:var(--ink-2);cursor:pointer}
+.switch input{position:absolute;opacity:0;width:1px;height:1px}
+.switch .track{width:34px;height:20px;border-radius:20px;background:var(--line);position:relative;transition:background .15s}
+.switch .track::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--surface);transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.switch input:checked+.track{background:var(--accent)}
+.switch input:checked+.track::after{transform:translateX(14px)}
+.switch input:focus-visible+.track{outline:2px solid var(--accent);outline-offset:2px}
+.btn{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:8px 14px;min-height:40px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn:hover{background:var(--surface-2)}
+.btn:disabled{opacity:.6;cursor:progress}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.big{min-height:48px;font-size:16px;width:100%}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--ink-2)}
+.btn.ghost:hover{background:var(--surface-2);color:var(--ink)}
+.btn.sm{min-height:32px;padding:4px 10px;font-size:13px}
+.btn svg{flex:none}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+.muted{color:var(--ink-2);font-size:13px}
+.hint{color:var(--ink-2);font-size:13px;margin:0 0 10px}
+/* revisión de redacción */
+.issues{margin-top:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);font-size:13.5px;overflow:hidden}
+.issues .hd{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;font-weight:600}
+.issues.ok{background:var(--ok-soft);border-color:transparent;color:var(--ok)}
+.issues.ok .hd{justify-content:flex-start;gap:8px}
+.issues ul{list-style:none;margin:0;padding:0}
+.iss{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:8px 10px;border-top:1px solid var(--line);align-items:center}
+.iss .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--c2);margin-right:6px}
+.iss .ctx{grid-column:1/-1;color:var(--ink-2);overflow-wrap:anywhere}
+mark{background:var(--c2-soft);color:var(--ink);border-radius:3px;padding:0 2px;font-weight:600}
+mark.ins{background:var(--ok-soft)}
+.sugg{margin-top:8px;border:1px solid var(--accent);border-radius:8px;padding:10px 12px;background:var(--accent-soft)}
+.sugg p{margin:0 0 10px;white-space:pre-wrap}
+.sugg .t{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
+/* chips */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.chip{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;min-height:34px}
+.chip:hover{background:var(--surface-2)}
+.chip[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.atn{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:center;margin-bottom:12px}
+/* estudiantes */
+.empty{border:1px dashed var(--line);border-radius:10px;padding:16px;margin-top:14px;color:var(--ink-2);display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between}
+.empty p{margin:0;max-width:46ch}
+.legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin:16px 0 10px;font-size:13px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;font-size:12px;font-weight:700}
+.d1{background:var(--c1-soft);color:var(--c1)}.d2{background:var(--c2-soft);color:var(--c2)}.d3{background:var(--c3-soft);color:var(--c3)}.d4{background:var(--surface-2);color:var(--ink-2)}
+.pool-h,.box h3{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px;margin:0 0 8px;font-weight:700}
+.n{font-weight:700;font-size:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:0 8px;color:var(--ink-2)}
+ul.pool,ul.names{list-style:none;margin:0;padding:0}
+ul.pool{max-height:460px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.stu{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;padding:8px 10px;border-top:1px solid var(--line)}
+.stu:first-child{border-top:0}
+.nm{font-weight:500;overflow-wrap:anywhere;min-width:0;flex:1 1 170px}
+.mvs{display:flex;flex-wrap:wrap;gap:6px;flex:0 1 auto}
+.mv{font:inherit;font-size:12.5px;font-weight:600;border-radius:8px;border:1px solid;background:var(--surface);padding:4px 8px;min-height:34px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.mv b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;font-size:11px}
+.m1{color:var(--c1);border-color:var(--c1)}.m1 b{background:var(--c1-soft)}.m1:hover{background:var(--c1-soft)}
+.m2{color:var(--c2);border-color:var(--c2)}.m2 b{background:var(--c2-soft)}.m2:hover{background:var(--c2-soft)}
+.m3{color:var(--c3);border-color:var(--c3)}.m3 b{background:var(--c3-soft)}.m3:hover{background:var(--c3-soft)}
+.m4{color:var(--ink-2);border-color:var(--line)}.m4 b{background:var(--surface-2)}.m4:hover{background:var(--c1-soft);color:var(--c1);border-color:var(--c1)}.m4:hover b{background:var(--surface)}
+.boxes{display:flex;flex-direction:column;gap:12px;margin-top:16px}
+.box{border:1px solid var(--line);border-radius:10px;padding:12px;border-left-width:4px}
+.box.c1{border-left-color:var(--c1)}.box.c2{border-left-color:var(--c2)}.box.c3{border-left-color:var(--c3)}
+.box li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 0;border-top:1px solid var(--line)}
+.box li:first-child{border-top:0}
+.box .none{color:var(--ink-2);font-size:13px;margin:0}
+.opts{display:flex;flex-wrap:wrap;gap:8px 24px;margin:4px 0 16px}
+.dir{margin:0 0 16px;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+.dir .grid{grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr)}
+.dir .hint{margin:10px 0 0}
+.check{display:inline-flex;align-items:center;gap:8px;font-weight:500;font-size:14px;color:var(--ink);cursor:pointer}
+.check input{flex:none;width:18px;height:18px;accent-color:var(--accent)}
+/* vista previa */
+.preview{min-width:0}
+.pv-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.pv-head h2{font-family:var(--font-display);font-size:19px;margin:0}
+.sheetwrap{overflow:auto;border-radius:6px}
+.sheet{background:var(--paper);color:var(--paper-ink);font-family:var(--font-doc);font-size:13px;line-height:1.5;padding:40px 44px;box-shadow:var(--shadow);border-radius:4px;min-width:0}
+.sheet .t1{text-align:center;font-weight:700;font-size:15.5px;margin:0}
+.sheet .t2{text-align:center;font-weight:700;font-size:13px;margin:3px 0 0}
+.sheet hr{border:0;border-top:2px solid #2a2f35;margin:10px 0 18px}
+.sheet ul{margin:0;padding:0;list-style:none}
+.sheet .det li{position:relative;padding-left:16px;margin-bottom:2px}
+.sheet .det li::before,.sheet .names li::before{content:"";position:absolute;left:3px;top:.62em;width:5px;height:5px;border-radius:50%;background:var(--paper-ink)}
+.sheet p{margin:0 0 10px;text-align:justify;hyphens:auto}
+.sheet .det{margin-bottom:14px}
+.sheet h4{text-align:center;font-size:13.5px;margin:20px 0 4px;font-weight:700}
+.sheet h4+hr{margin:4px 0 12px;border-top-width:1px;border-color:var(--paper-line)}
+.sheet .ct{font-weight:700;margin:12px 0 3px}
+.sheet .names li{position:relative;padding-left:16px;overflow-wrap:anywhere}
+.sheet table.rep{width:100%;border-collapse:collapse;table-layout:fixed;margin:2px 0 8px}
+.sheet .rep th,.sheet .rep td{border:1px solid var(--paper-line);padding:4px 5px;vertical-align:middle;overflow-wrap:anywhere}
+.sheet .rep th{background:var(--paper-head);font-size:10.5px;line-height:1.25;text-align:center;font-weight:700}
+.sheet .rep th .sm{font-weight:400}
+.sheet .rep td{height:46px;font-size:11.5px}
+.sheet .rep th:nth-child(1){width:28%}.sheet .rep th:nth-child(2){width:21%}.sheet .rep th:nth-child(3){width:27%}.sheet .rep th:nth-child(4){width:24%}
+.sheet .ph{color:var(--paper-mute);font-style:italic}
+.sheet .signs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:28px;max-width:520px;margin:46px auto 0}
+.sheet .sign{text-align:center;border-top:1px solid var(--paper-ink);padding-top:4px;font-weight:700;overflow-wrap:anywhere;min-height:6px}
+.sheet .role{text-align:center;overflow-wrap:anywhere}
+.mbar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);
+  padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.toast{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom,0px));transform:translate(-50%,12px);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;font-size:14px;max-width:min(92vw,460px);text-align:center;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:30}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+@media (max-width:959px){body{padding-bottom:96px}.pv-head .btn{display:none}}
+@media (min-width:960px){
+  .layout{grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr)}
+  .preview{position:sticky;top:16px}
+  .sheetwrap{max-height:calc(100vh - 92px)}
+  .mbar{display:none}
+  .toast{bottom:24px}
+}
+@media (max-width:560px){
+  .grid{grid-template-columns:minmax(0,1fr)}
+  .panel{padding:16px}
+  .sheet{padding:22px 18px;font-size:12.5px}
+  .atn{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .atn .lbl{grid-column:1/-1}
+  .mvs{width:100%}.mv{flex:1 1 40%;justify-content:center;padding:4px 6px}
+  .dir .grid{grid-template-columns:minmax(0,1fr)}
+  .sheet .rep th{font-size:8.5px}.sheet .rep td{font-size:10px;height:40px;padding:3px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Comunicados académicos</h1>
+      <p>Llena los datos, clasifica a los estudiantes y descarga el comunicado en PDF listo para enviar al representante legal.</p>
+    </div>
+    <button type="button" class="btn ghost" id="btnNuevo">Nuevo comunicado</button>
+  </header>
+
+  <main class="layout">
+    <div class="col-form">
+      <section class="panel" aria-labelledby="h1s">
+        <h2 id="h1s"><span class="step">1</span>Datos del comunicado</h2>
+        <div class="grid">
+          <div class="field span2">
+            <label for="inst">Unidad educativa</label>
+            <input type="text" id="inst" autocomplete="off">
+          </div>
+          <div class="field span2">
+            <div class="rowline">
+              <span class="lbl">Fecha y hora</span>
+              <label class="switch"><input type="checkbox" id="auto"><span class="track"></span><span>Automática (hora de Ecuador)</span></label>
+            </div>
+            <div class="two">
+              <input type="date" id="fecha" aria-label="Fecha">
+              <input type="time" id="hora" aria-label="Hora">
+            </div>
+          </div>
+          <div class="field">
+            <label for="grado">Grado/Curso</label>
+            <select id="grado"></select>
+          </div>
+          <div class="field">
+            <label for="materia">Materia</label>
+            <select id="materia"></select>
+          </div>
+          <div class="field span2" id="otraWrap" hidden>
+            <label for="materiaOtra">Nombre de la materia</label>
+            <input type="text" id="materiaOtra" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="docente">Docente</label>
+            <input type="text" id="docente" autocomplete="off" placeholder="Ej.: MSc. Nombre Apellido">
+          </div>
+          <div class="field">
+            <label for="mta">M.T.A. (método o fase)</label>
+            <select id="mta"></select>
+          </div>
+          <div class="field span2">
+            <label for="tema">Tema</label>
+            <textarea id="tema" rows="2" placeholder="Ej.: Lección: Los niveles de organización de la materia viva."></textarea>
+            <div class="issues" id="iss-tema" hidden></div>
+            <div class="sugg" id="sg-tema" hidden></div>
+            <div class="tools"><button type="button" class="btn sm js-claude" id="cl-tema" data-k="tema" hidden>Revisar con Claude</button></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="h2s">
+        <h2 id="h2s"><span class="step">2</span>Texto del comunicado</h2>
+        <div class="field">
+          <label for="intro">Introducción</label>
+          <textarea id="intro" rows="4"></textarea>
+          <div class="issues" id="iss-intro" hidden></div>
+          <div class="sugg" id="sg-intro" hidden></div>
+          <div class="tools">
+            <button type="button" class="btn sm ghost" id="btnReset" hidden>Restablecer texto base</button>
+            <button type="button" class="btn sm js-claude" id="cl-intro" data-k="intro" hidden>Revisar con Claude</button>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:18px">
+          <label for="comp">Texto complementario</label>
+          <div class="chips" id="chips"></div>
+          <div class="atn">
+            <span class="lbl">Atención a padres</span>
+            <select id="dia" aria-label="Día de atención a padres"></select>
+            <input type="time" id="horaAt" aria-label="Hora de atención a padres">
+          </div>
+          <textarea id="comp" rows="5"></textarea>
+          <div class="issues" id="iss-comp" hidden></div>
+          <div class="sugg" id="sg-comp" hidden></div>
+          <div class="field" style="margin-top:12px">
+            <label for="instr">Línea que debe cumplir el texto <span class="opt">(opcional)</span></label>
+            <input type="text" id="instr" autocomplete="off" placeholder="Ej.: invitar al estudiante a reunirse para conversar posibles soluciones">
+          </div>
+          <div class="tools"><button type="button" class="btn sm js-claude" id="cl-comp" data-k="comp" hidden>Redactar con Claude</button></div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="h3s">
+        <h2 id="h3s"><span class="step">3</span>Estudiantes</h2>
+        <div class="field">
+          <label for="lista">Pega la lista del curso</label>
+          <textarea id="lista" rows="4" placeholder="Un estudiante por línea. Se limpian números y viñetas automáticamente."></textarea>
+        </div>
+        <div class="tools">
+          <button type="button" class="btn primary sm" id="btnCargar">Cargar lista</button>
+          <button type="button" class="btn ghost sm" id="btnVaciar" hidden>Vaciar estudiantes</button>
+          <span class="muted" id="cnt" aria-live="polite"></span>
+        </div>
+
+        <div class="empty" id="emptySt">
+          <p>Cada estudiante aparecerá con cuatro botones: tres lo envían a su casilla y «Eliminar» lo quita de la lista. Los que queden sin clasificar no aparecen en el comunicado.</p>
+          <button type="button" class="btn sm" id="btnEjemplo">Probar con lista de ejemplo</button>
+        </div>
+
+        <div id="classify" hidden>
+          <div class="legend" aria-hidden="true">
+            <span><i class="dot d1">1</i>No realizó la actividad</span>
+            <span><i class="dot d2">2</i>Entregó incompleta</span>
+            <span><i class="dot d3">3</i>No asistió a clase</span>
+            <span><i class="dot d4">×</i>Eliminar de la lista</span>
+          </div>
+          <div class="pool-h"><span>Sin novedad (cumplieron)</span><span class="n" id="n0">0</span></div>
+          <ul class="pool" id="pool"></ul>
+          <div class="boxes">
+            <section class="box c1"><h3><span>Estudiantes que no realizaron la actividad</span><span class="n" id="n1">0</span></h3><ul class="names" id="box1"></ul></section>
+            <section class="box c2"><h3><span>Estudiantes que entregaron la actividad de forma incompleta</span><span class="n" id="n2">0</span></h3><ul class="names" id="box2"></ul></section>
+            <section class="box c3"><h3><span>Estudiantes que no asistieron a clase</span><span class="n" id="n3">0</span></h3><ul class="names" id="box3"></ul></section>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" aria-label="Opciones y descarga">
+        <div class="opts">
+          <label class="check"><input type="checkbox" id="mayus"> Nombres en MAYÚSCULAS</label>
+          <label class="check"><input type="checkbox" id="firma"> Incluir firmas del docente y de la autoridad</label>
+          <label class="check"><input type="checkbox" id="tabla"> Espacios para llenar a mano (asistencia, acuerdos y firma del representante legal)</label>
+        </div>
+        <div class="dir" id="dirBox" hidden>
+          <div class="grid">
+            <div class="field">
+              <label for="dirCargo">Cargo de quien firma</label>
+              <select id="dirCargo"></select>
+            </div>
+            <div class="field">
+              <label for="dirNombre">Nombre de la autoridad</label>
+              <input type="text" id="dirNombre" autocomplete="off" placeholder="Ej.: MSc. Nombre Apellido">
+            </div>
+          </div>
+          <p class="hint">Aparece junto a la firma del docente. Si dejas el nombre vacío, queda la línea con el cargo para firmar a mano.</p>
+        </div>
+        <button type="button" class="btn primary big js-pdf">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg>
+          Descargar PDF
+        </button>
+      </section>
+    </div>
+
+    <aside class="preview" aria-label="Vista previa del comunicado">
+      <div class="pv-head">
+        <h2>Vista previa</h2>
+        <button type="button" class="btn primary js-pdf">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg>
+          Descargar PDF
+        </button>
+      </div>
+      <div class="sheetwrap"><div class="sheet" id="sheet"></div></div>
+    </aside>
+  </main>
+</div>
+
+<div class="mbar"><button type="button" class="btn primary big js-pdf">Descargar PDF</button></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+'use strict';
+var TZ='America/Guayaquil', KEY='comunicados-academicos-v1';
+var $=function(id){return document.getElementById(id)};
+function h(tag,props){
+  var e=document.createElement(tag), kids=Array.prototype.slice.call(arguments,2);
+  if(props) for(var k in props){
+    var v=props[k];
+    if(v==null||v===false) continue;
+    if(k==='class') e.className=v;
+    else if(k==='text') e.textContent=v;
+    else if(k.indexOf('on')===0) e.addEventListener(k.slice(2),v);
+    else if(v===true) e.setAttribute(k,'');
+    else if(v!==false&&v!=null) e.setAttribute(k,v);
+  }
+  kids.forEach(function(c){ if(c==null||c===false) return; (Array.isArray(c)?c:[c]).forEach(function(x){ e.append(x&&x.nodeType?x:document.createTextNode(x)); }); });
+  return e;
+}
+
+/* ---------- catálogos ---------- */
+var GRADOS=[
+  {g:'EGB · Preparatoria',o:['1.° de EGB']},
+  {g:'EGB · Elemental',o:['2.° de EGB','3.° de EGB','4.° de EGB']},
+  {g:'EGB · Media',o:['5.° de EGB','6.° de EGB','7.° de EGB']},
+  {g:'EGB · Superior',o:['8.° de EGB','9.° de EGB','10.° de EGB']},
+  {g:'BGU · Bachillerato',o:['1.° de BGU','2.° de BGU','3.° de BGU']}
+];
+var MATERIAS=[
+  {g:'EGB y BGU',o:['Lengua y Literatura','Matemática','Inglés','Educación Cultural y Artística','Educación Física','Emprendimiento y Gestión','Proyectos Escolares','Desarrollo Humano Integral','Acompañamiento Integral en el Aula']},
+  {g:'EGB',o:['Ciencias Naturales','Estudios Sociales']},
+  {g:'EGB · Preparatoria (ámbitos de aprendizaje)',o:['Identidad y Autonomía','Convivencia','Relaciones Lógico-Matemáticas','Relaciones con el Medio Natural y Cultural','Comprensión y Expresión Oral y Escrita','Expresión Artística','Expresión Corporal y Motricidad']},
+  {g:'BGU',o:['Física','Química','Biología','Historia','Educación para la Ciudadanía','Filosofía','Informática']}
+];
+var MTA=['Fase 1: Autoaprendizaje','Fase 2: Coaprendizaje','Fase 3: Socialización'];
+var DIAS=['lunes','martes','miércoles','jueves','viernes'];
+var CATS={1:'Estudiantes que no realizaron la actividad:',2:'Estudiantes que entregaron la actividad de forma incompleta:',3:'Estudiantes que no asistieron a clase:'};
+
+/* ---------- estado ---------- */
+var DEF={inst:'OTTO SHARNOW',auto:true,fecha:'',hora:'',grado:'',materia:'',materiaOtra:'',docente:'MSc. Carlos Reinoso',mta:'',tema:'',intro:'',introEdited:false,comp:null,dia:'miércoles',horaAt:'13:30',instr:'',alumnos:[],mayus:true,firma:false,dirNombre:'',dirCargo:'Director/a',tabla:true,nextId:1};
+var state=loadState();
+function loadState(){
+  var d=JSON.parse(JSON.stringify(DEF));
+  try{
+    var s=JSON.parse(localStorage.getItem(KEY)||'null');
+    if(s&&typeof s==='object'){ for(var k in d){ if(k in s) d[k]=s[k]; } }
+  }catch(e){}
+  if(!Array.isArray(d.alumnos)) d.alumnos=[];
+  d.alumnos=d.alumnos.filter(function(a){return a&&typeof a.name==='string'&&typeof a.id==='number'}).map(function(a){return {id:a.id,name:a.name,cat:[0,1,2,3].indexOf(a.cat)>=0?a.cat:0}});
+  d.nextId=Math.max(d.nextId||1,d.alumnos.reduce(function(m,a){return Math.max(m,a.id+1)},1));
+  return d;
+}
+var saveT;
+function save(){
+  clearTimeout(saveT);
+  saveT=setTimeout(function(){ try{ localStorage.setItem(KEY,JSON.stringify(state)); }catch(e){} },350);
+}
+function toast(msg){
+  var t=$('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toast.t); toast.t=setTimeout(function(){t.classList.remove('show')},4200);
+}
+
+/* ---------- fecha y hora ---------- */
+function nowEC(){
+  var f=new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+  var p={}; f.formatToParts(new Date()).forEach(function(x){p[x.type]=x.value});
+  return {fecha:p.year+'-'+p.month+'-'+p.day,hora:p.hour+':'+p.minute};
+}
+function fechaLarga(iso){
+  if(!iso) return '';
+  var a=iso.split('-').map(Number); if(a.length<3||!a[0]) return '';
+  var dt=new Date(Date.UTC(a[0],a[1]-1,a[2],12));
+  var s=new Intl.DateTimeFormat('es-EC',{timeZone:'UTC',weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(dt);
+  s=s.replace(/^(\p{L}+)\s(?=\d)/u,'$1, ');
+  return s.charAt(0).toUpperCase()+s.slice(1);
+}
+function syncClock(){
+  if(!state.auto) return false;
+  var n=nowEC(), ch=(n.fecha!==state.fecha||n.hora!==state.hora);
+  state.fecha=n.fecha; state.hora=n.hora; $('fecha').value=n.fecha; $('hora').value=n.hora;
+  return ch;
+}
+
+/* ---------- textos base ---------- */
+function unir(a){
+  if(a.length<2) return a.join('');
+  var last=a[a.length-1], conj=/^(i|hi)/i.test(last)?' e ':' y ';
+  return a.slice(0,-1).join(', ')+conj+last;
+}
+function cuenta(c){return state.alumnos.filter(function(a){return a.cat===c}).length}
+function introBase(){
+  var p=[]; if(cuenta(1)) p.push('incumplimientos'); if(cuenta(2)) p.push('entregas parciales'); if(cuenta(3)) p.push('inasistencias');
+  var s2=p.length?'Se evidencian '+unir(p)+' en el desarrollo de la tarea.':'A continuación se detalla el estado de cumplimiento de la actividad.';
+  return 'Por medio del presente se informa sobre la situación académica de los estudiantes respecto a la actividad asignada en el marco de la metodología de aprendizaje. '+s2;
+}
+var FR={
+  atencion:function(){return 'Se invita cordialmente a los representantes legales a participar en las jornadas de atención a padres, las cuales se realizan todos los '+state.dia+' a partir de las '+state.horaAt+', con el fin de fortalecer el acompañamiento educativo y contribuir al progreso académico continuo de los estudiantes.'},
+  soluciones:function(){return 'Asimismo, se solicita a los representantes legales y a los estudiantes reunirse con el docente para conversar sobre las posibles soluciones y establecer compromisos de mejora.'},
+  justifica:function(){return 'En caso de inasistencia, se solicita presentar la justificación correspondiente ante el docente o la autoridad institucional.'}
+};
+var CHIPS=[['atencion','Invitar a atención a padres'],['soluciones','Conversar posibles soluciones'],['justifica','Pedir justificación de inasistencias']];
+if(state.comp===null) state.comp=FR.atencion();
+function materiaFinal(){return state.materia==='__otra'?state.materiaOtra.trim():state.materia}
+function nm(a){return state.mayus?a.name.toLocaleUpperCase('es'):a.name}
+
+/* ---------- revisión de redacción ---------- */
+var ACCENT={tambien:'también',ademas:'además',asi:'así',aqui:'aquí',ahi:'ahí',alli:'allí',habian:'habían',estan:'están',estara:'estará',estaran:'estarán',podra:'podrá',podran:'podrán',debera:'deberá',deberan:'deberán',seran:'serán',tendra:'tendrá',tendran:'tendrán',dia:'día',dias:'días',miercoles:'miércoles',sabado:'sábado',ultimo:'último',ultima:'última',unico:'único',unica:'única',numero:'número',metodo:'método',academico:'académico',academica:'académica',academicos:'académicos',academicas:'académicas',pedagogico:'pedagógico',pedagogica:'pedagógica',informatica:'informática',matematica:'matemática',matematicas:'matemáticas',fisica:'física',quimica:'química',biologia:'biología',tutoria:'tutoría',reunion:'reunión',opinion:'opinión',union:'unión',razon:'razón',dialogo:'diálogo',analisis:'análisis',dificil:'difícil',facil:'fácil',util:'útil',proposito:'propósito',exito:'éxito'};
+var MISSPELL={aveces:'a veces',enserio:'en serio',osea:'o sea',sinembargo:'sin embargo',atravez:'a través',atraves:'a través',porfavor:'por favor',talvez:'tal vez',deacuerdo:'de acuerdo',apartir:'a partir',exelente:'excelente',aprendisaje:'aprendizaje'};
+var ABBR={etc:1,sr:1,sra:1,srta:1,dr:1,dra:1,msc:1,mgs:1,lic:1,ing:1,ej:1,'pág':1,pag:1,'núm':1,num:1,art:1,prof:1,profa:1,av:1,tel:1,cap:1,vol:1,aprox:1};
+var FRASES=[
+  [/(?<![\p{L}])de acuerdo a(?![\p{L}])/giu,'Se recomienda «de acuerdo con»','de acuerdo con'],
+  [/(?<![\p{L}])en base a(?![\p{L}])/giu,'Se recomienda «con base en»','con base en'],
+  [/(?<![\p{L}])(?:dar(?:se)?|dio|dieron|di|dimos|da|dan|dando|dado)\s+cuenta\s+que(?![\p{L}])/giu,'Falta «de»: «darse cuenta de que»',function(t){return t.replace(/cuenta\s+que/i,'cuenta de que')}],
+  [/(?<![\p{L}])debe de(?=\s+\p{L}+(?:ar|er|ir)(?![\p{L}]))/giu,'«Deber de» expresa suposición; para obligación se usa «debe» + infinitivo','debe'],
+  [/(?<![\p{L}])habían(?=\s+(?:muchos|muchas|pocos|pocas|varios|varias)(?![\p{L}]))/giu,'Verbo impersonal: se dice «había», no «habían»','había'],
+  [/(?<![\p{L}])pienso de que(?![\p{L}])/giu,'Dequeísmo: se dice «pienso que»','pienso que']
+];
+function keepCase(o,r){
+  if(o.length>1&&o===o.toUpperCase()) return r.toUpperCase();
+  if(o[0]!==o[0].toLowerCase()) return r.charAt(0).toUpperCase()+r.slice(1);
+  return r;
+}
+function checkText(text,opts){
+  opts=opts||{};
+  var out=[], m, re, add=function(s,e,type,msg,rep){out.push({s:s,e:e,type:type,msg:msg,rep:rep})};
+  re=/ {2,}/g;
+  while((m=re.exec(text))){ if(m.index===0||text[m.index-1]==='\n') continue; add(m.index,m.index+m[0].length,'Puntuación','Hay espacios de más',' '); }
+  re=/[ \t]+(?=[,;:.!?])/g;
+  while((m=re.exec(text))){ var nx=text[m.index+m[0].length+1]; if(m.index===0||text[m.index-1]==='\n') continue; if(text[m.index+m[0].length]==='.'&&nx==='.') continue; add(m.index,m.index+m[0].length,'Puntuación','Sobra un espacio antes del signo «'+text[m.index+m[0].length]+'»',''); }
+  re=/([,;:])(?=[\p{L}¿¡(])/gu;
+  while((m=re.exec(text))) add(m.index,m.index+1,'Puntuación','Falta un espacio después de «'+m[1]+'»',m[1]+' ');
+  re=/(?<=[\p{Ll}\d])([.?!])(?=[\p{Lu}¿¡])/gu;
+  while((m=re.exec(text))) add(m.index,m.index+1,'Puntuación','Falta un espacio después de «'+m[1]+'»',m[1]+' ');
+  m=/^\s*(\p{Ll})/u.exec(text);
+  if(m){ var i0=m[0].length-1; add(i0,i0+1,'Mayúscula','El texto debe iniciar con mayúscula',m[1].toLocaleUpperCase('es')); }
+  re=/([.!?]['")\]]?\s+)(\p{Ll})/gu;
+  while((m=re.exec(text))){
+    var before=text.slice(0,m.index), pw=/(\p{L}+)$/u.exec(before);
+    if(m[1][0]==='.'&&text[m.index-1]==='.') continue;
+    if(pw&&ABBR[pw[1].toLowerCase()]) continue;
+    var ix=m.index+m[1].length;
+    add(ix,ix+1,'Mayúscula','Después de un punto va mayúscula',m[2].toLocaleUpperCase('es'));
+  }
+  re=/(?<![\p{L}\d])(\p{L}+)\s+\1(?![\p{L}\d])/giu;
+  while((m=re.exec(text))){ if(/^ja/i.test(m[1])) continue; add(m.index,m.index+m[0].length,'Redacción','Palabra repetida: «'+m[1]+'»',m[1]); }
+  var oq=[],oe=[],i,ch;
+  for(i=0;i<text.length;i++){
+    ch=text[i];
+    if(ch==='¿') oq.push(i); else if(ch==='?'){ if(oq.length) oq.pop(); else add(i,i+1,'Puntuación','Falta el signo de apertura «¿»'); }
+    else if(ch==='¡') oe.push(i); else if(ch==='!'){ if(oe.length) oe.pop(); else add(i,i+1,'Puntuación','Falta el signo de apertura «¡»'); }
+  }
+  oq.forEach(function(p){add(p,p+1,'Puntuación','Falta cerrar la pregunta con «?»')});
+  oe.forEach(function(p){add(p,p+1,'Puntuación','Falta cerrar la exclamación con «!»')});
+  var po=(text.match(/\(/g)||[]).length, pc=(text.match(/\)/g)||[]).length;
+  if(po!==pc){ var pp=po>pc?text.lastIndexOf('('):text.lastIndexOf(')'); add(pp,pp+1,'Puntuación',po>pc?'Paréntesis sin cerrar':'Paréntesis de cierre sin apertura'); }
+  var qs=[]; re=/"/g; while((m=re.exec(text))) qs.push(m.index);
+  if(qs.length%2) add(qs[qs.length-1],qs[qs.length-1]+1,'Puntuación','Comillas sin cerrar');
+  re=/(?<![\p{L}\d])\p{L}+(?![\p{L}\d])/gu;
+  while((m=re.exec(text))){
+    var w=m[0], lw=w.toLowerCase();
+    if(ACCENT[lw]) add(m.index,m.index+w.length,'Ortografía','Falta la tilde: «'+ACCENT[lw]+'»',keepCase(w,ACCENT[lw]));
+    else if(MISSPELL[lw]) add(m.index,m.index+w.length,'Ortografía','Se escribe «'+MISSPELL[lw]+'»',keepCase(w,MISSPELL[lw]));
+    else if(w.length>4&&/(ci|si)on$/i.test(w)){
+      var rp=w.slice(0,-2)+(w===w.toUpperCase()?'ÓN':'ón');
+      add(m.index,m.index+w.length,'Ortografía','Las palabras terminadas en -ción y -sión llevan tilde: «'+rp.toLowerCase()+'»',rp);
+    }
+  }
+  FRASES.forEach(function(f){
+    f[0].lastIndex=0;
+    while((m=f[0].exec(text))){ var r=typeof f[2]==='function'?f[2](m[0]):f[2]; add(m.index,m.index+m[0].length,'Redacción',f[1],keepCase(m[0],r)); }
+  });
+  if(opts.final){
+    var tr=text.replace(/\s+$/,'');
+    if(tr&&!/[.!?…:;)"'»]$/.test(tr)) add(tr.length,tr.length,'Puntuación','El párrafo no termina con punto final','.');
+  }
+  re=/[^.!?\n]+[.!?]?/g;
+  while((m=re.exec(text))){ var wc=m[0].trim().split(/\s+/).filter(Boolean).length; if(wc>55) add(m.index,m.index+m[0].length,'Redacción','Oración muy larga ('+wc+' palabras). Conviene dividirla con un punto.'); }
+  out.sort(function(a,b){return a.s-b.s||a.e-b.e});
+  var res=[], pe=-1;
+  out.forEach(function(it){ if(it.s<pe&&res.length) return; res.push(it); pe=it.e; });
+  return res;
+}
+var FIELDS={tema:{final:false},intro:{final:true},comp:{final:true}};
+function applyFix(key,issue){
+  var el=$(key), v=el.value;
+  el.value=v.slice(0,issue.s)+issue.rep+v.slice(issue.e);
+  el.dispatchEvent(new Event('input',{bubbles:true}));
+}
+function snippet(text,it){
+  var R=26, a=Math.max(0,it.s-R), b=Math.min(text.length,it.e+R);
+  var mid=text.slice(it.s,it.e);
+  if(it.e-it.s>70) mid=mid.slice(0,70)+'…';
+  var shown=it.s===it.e?(it.rep||''):(/^\s+$/.test(mid)?mid.replace(/ /g,'·'):mid);
+  return h('span',{class:'ctx'},(a>0?'…':'')+text.slice(a,it.s).replace(/\n/g,' '),h('mark',{class:it.s===it.e?'ins':null,text:shown}),text.slice(it.e<b?it.e:b,b).replace(/\n/g,' ')+(b<text.length?'…':''));
+}
+function revisar(key){
+  var el=$(key), box=$('iss-'+key), text=el.value;
+  box.textContent='';
+  if(!text.trim()){box.hidden=true;return}
+  var list=checkText(text,FIELDS[key]);
+  box.hidden=false;
+  if(!list.length){
+    box.className='issues ok';
+    box.append(h('div',{class:'hd'},h('span',{'aria-hidden':'true',text:'✓'}),'Sin observaciones de ortografía, puntuación ni redacción'));
+    return;
+  }
+  box.className='issues';
+  var fixables=list.filter(function(i){return i.rep!==undefined});
+  var hd=h('div',{class:'hd'},h('span',{text:list.length+(list.length===1?' observación':' observaciones')}));
+  if(fixables.length>1) hd.append(h('button',{type:'button',class:'btn sm',text:'Corregir todo',onclick:function(){
+    var v=el.value; fixables.slice().sort(function(a,b){return b.s-a.s}).forEach(function(i){v=v.slice(0,i.s)+i.rep+v.slice(i.e)});
+    el.value=v; el.dispatchEvent(new Event('input',{bubbles:true}));
+  }}));
+  box.append(hd);
+  var ul=h('ul');
+  list.forEach(function(it){
+    var li=h('li',{class:'iss'},h('span',null,h('span',{class:'tag',text:it.type}),it.msg));
+    if(it.rep!==undefined) li.append(h('button',{type:'button',class:'btn sm',text:'Corregir',onclick:function(){applyFix(key,it)}})); else li.append(h('span'));
+    li.append(snippet(text,it));
+    ul.append(li);
+  });
+  box.append(ul);
+}
+var debRev={};
+function revisarDeb(key){ clearTimeout(debRev[key]); debRev[key]=setTimeout(function(){revisar(key)},300); }
+
+/* ---------- Claude (si está disponible) ---------- */
+var sample=null;
+try{
+  if(window.claude&&window.claude.use){
+    window.claude.use('sample').then(function(s){
+      if(s){ sample=s; document.querySelectorAll('.js-claude').forEach(function(b){b.hidden=false}); }
+    }).catch(function(){});
+  }
+}catch(e){}
+function claudeRun(key){
+  if(!sample) return;
+  var btn=$('cl-'+key), card=$('sg-'+key), el=$(key), orig=btn.textContent;
+  var ctx='Grado/Curso: '+(state.grado||'sin indicar')+'. Materia: '+(materiaFinal()||'sin indicar')+'. Tema: '+(state.tema||'sin indicar')+'.';
+  var p;
+  if(key==='tema') p='Corrige la ortografía, las tildes, la puntuación y la redacción de este tema de clase escolar, en español de Ecuador. Conserva el sentido. Devuelve una sola línea con el texto final, sin comillas ni explicaciones.\n\nTexto:\n'+el.value;
+  else if(key==='intro') p='Eres redactor de comunicados de una unidad educativa de Ecuador dirigidos a representantes legales. Corrige ortografía, tildes, puntuación y redacción del siguiente texto, con tono formal, cordial y claro. Conserva el sentido y los datos. Devuelve únicamente el texto final, sin comillas ni explicaciones.\n\nContexto: '+ctx+'\n\nTexto:\n'+el.value;
+  else {
+    var ins=state.instr.trim();
+    p='Eres redactor de comunicados de una unidad educativa de Ecuador dirigidos a representantes legales. '+(el.value.trim()?'Mejora el siguiente texto complementario corrigiendo ortografía, puntuación y redacción.':'Redacta un párrafo complementario breve para el comunicado.')+(ins?' El texto debe cumplir esta indicación del docente: «'+ins+'». Conserva lo que ya está escrito si no contradice la indicación.':' Conserva el sentido.')+' Tono formal, cordial y claro, sin inventar fechas, horarios ni nombres. Devuelve únicamente el texto final, sin comillas ni explicaciones.\n\nContexto: '+ctx+'\n\nTexto actual:\n'+(el.value||'(vacío)');
+  }
+  btn.disabled=true; btn.textContent='Revisando…';
+  sample(p,{modelTier:'quick',cache:false}).then(function(r){
+    var t=(r&&r.text||'').trim().replace(/^["«]|["»]$/g,'');
+    card.textContent='';
+    if(!t){ toast('Claude no devolvió texto. Inténtalo de nuevo.'); card.hidden=true; return; }
+    card.hidden=false;
+    card.append(h('div',{class:'t',text:'Versión sugerida'}),h('p',{text:t}),
+      h('div',{class:'tools',style:'margin-top:0'},
+        h('button',{type:'button',class:'btn sm primary',text:'Usar esta versión',onclick:function(){el.value=t;el.dispatchEvent(new Event('input',{bubbles:true}));card.hidden=true}}),
+        h('button',{type:'button',class:'btn sm ghost',text:'Descartar',onclick:function(){card.hidden=true}})));
+  }).catch(function(e){
+    var c=e&&e.code;
+    toast(c==='not_granted'?'Claude no tiene permiso en esta vista.':c==='rate_limited'?'Espera unos segundos e inténtalo de nuevo.':'No se pudo consultar a Claude ahora.');
+  }).then(function(){ btn.disabled=false; btn.textContent=orig; });
+}
+
+/* ---------- estudiantes ---------- */
+function parseList(txt){
+  return txt.split(/\r?\n|;|\t/).map(function(s){
+    return s.replace(/^\s*(?:\d+\s*[.)\-–:]\s*|[•*·\-–]\s*)/,'').replace(/\s+/g,' ').trim();
+  }).filter(function(s){return s&&!/^\d+$/.test(s)});
+}
+function cargar(txt){
+  var names=parseList(txt), have={}, added=0, dup=0;
+  state.alumnos.forEach(function(a){have[a.name.toLocaleLowerCase('es')]=1});
+  names.forEach(function(n){
+    var k=n.toLocaleLowerCase('es');
+    if(have[k]){dup++;return}
+    have[k]=1; state.alumnos.push({id:state.nextId++,name:n,cat:0}); added++;
+  });
+  $('lista').value='';
+  if(!names.length) toast('No se encontraron nombres. Pega un estudiante por línea.');
+  else toast(added+(added===1?' estudiante cargado':' estudiantes cargados')+(dup?' ('+dup+' repetido'+(dup>1?'s':'')+' omitido'+(dup>1?'s':'')+')':'')+'.');
+  afterStudents();
+}
+function setCat(id,cat){
+  var pool=$('pool'), idx=-1;
+  if(cat!==0){ var rows=pool.querySelectorAll('.stu'); rows.forEach(function(r,i){ if(+r.dataset.id===id) idx=i; }); }
+  var a=state.alumnos.filter(function(x){return x.id===id})[0]; if(!a) return;
+  a.cat=cat; afterStudents();
+  if(cat!==0){
+    var rows2=pool.querySelectorAll('.stu'), next=rows2[Math.min(idx,rows2.length-1)];
+    var f=next&&next.querySelector('.mv'); if(f) f.focus();
+  }
+}
+function eliminar(id){
+  var a=state.alumnos.filter(function(x){return x.id===id})[0]; if(!a) return;
+  var idx=-1; $('pool').querySelectorAll('.stu').forEach(function(r,i){ if(+r.dataset.id===id) idx=i; });
+  var name=nm(a);
+  state.alumnos=state.alumnos.filter(function(x){return x.id!==id});
+  afterStudents();
+  var rows=$('pool').querySelectorAll('.stu'), next=rows[Math.min(idx,rows.length-1)];
+  var f=next&&next.querySelector('.mv'); if(f) f.focus();
+  toast(name+' eliminado de la lista.');
+}
+function afterStudents(){ renderStudents(); syncIntro(); renderPreview(); revisar('intro'); save(); }
+function renderStudents(){
+  var has=state.alumnos.length>0;
+  $('emptySt').hidden=has; $('classify').hidden=!has; $('btnVaciar').hidden=!has;
+  $('cnt').textContent=has?state.alumnos.length+(state.alumnos.length===1?' estudiante':' estudiantes'):'';
+  var pool=$('pool'); pool.textContent='';
+  var sin=state.alumnos.filter(function(a){return a.cat===0});
+  $('n0').textContent=sin.length;
+  if(!sin.length) pool.append(h('li',{class:'stu'},h('span',{class:'muted',text:'Todos los estudiantes están clasificados.'})));
+  sin.forEach(function(a){
+    pool.append(h('li',{class:'stu','data-id':a.id},h('span',{class:'nm',text:nm(a)}),
+      h('span',{class:'mvs'},
+        h('button',{type:'button',class:'mv m1',title:'No realizó la actividad','aria-label':'Enviar a No realizaron la actividad: '+nm(a),onclick:function(){setCat(a.id,1)}},h('b',{text:'1'}),'No realizó'),
+        h('button',{type:'button',class:'mv m2',title:'Entregó la actividad incompleta','aria-label':'Enviar a Entregaron incompleta: '+nm(a),onclick:function(){setCat(a.id,2)}},h('b',{text:'2'}),'Incompleta'),
+        h('button',{type:'button',class:'mv m3',title:'No asistió a clase','aria-label':'Enviar a No asistieron a clase: '+nm(a),onclick:function(){setCat(a.id,3)}},h('b',{text:'3'}),'No asistió'),
+        h('button',{type:'button',class:'mv m4',title:'Eliminar de la lista','aria-label':'Eliminar de la lista: '+nm(a),onclick:function(){eliminar(a.id)}},h('b',{text:'×','aria-hidden':'true'}),'Eliminar'))));
+  });
+  [1,2,3].forEach(function(c){
+    var ul=$('box'+c); ul.textContent='';
+    var l=state.alumnos.filter(function(a){return a.cat===c});
+    $('n'+c).textContent=l.length;
+    if(!l.length) ul.append(h('li',null,h('p',{class:'none',text:'Ninguno registrado.'})));
+    l.forEach(function(a){
+      ul.append(h('li',null,h('span',{class:'nm',text:nm(a)}),h('button',{type:'button',class:'btn sm ghost',title:'Devolver a Sin novedad','aria-label':'Devolver a Sin novedad: '+nm(a),onclick:function(){setCat(a.id,0)}},'Quitar')));
+    });
+  });
+}
+
+/* ---------- vista previa ---------- */
+function paras(text){ return text.split(/\n+/).map(function(s){return s.trim()}).filter(Boolean); }
+function renderPreview(){
+  var s=$('sheet'); s.textContent='';
+  var ph=function(t){return h('span',{class:'ph',text:t})};
+  s.append(h('p',{class:'t1',text:'UNIDAD EDUCATIVA "'+(state.inst.trim()||'…').toLocaleUpperCase('es')+'"'}),
+    h('p',{class:'t2',text:'NOTIFICACIÓN AL REPRESENTANTE LEGAL'}),
+    h('p',{class:'t2',text:'COMUNICADO DE ACTIVIDADES ACADÉMICAS'}),h('hr'));
+  var det=[['Fecha',fechaLarga(state.fecha),''],['Hora',state.hora,''],['Grado/Curso',state.grado,'Elige el grado o curso'],['Materia',materiaFinal(),'Elige la materia'],['Docente',state.docente.trim(),'Escribe el docente'],['Tema',state.tema.trim(),'Escribe el tema']];
+  if(state.mta) det.push(['M.T.A.',state.mta,'']);
+  var ul=h('ul',{class:'det'});
+  det.forEach(function(d){ ul.append(h('li',null,h('b',{text:d[0]+': '}),d[1]?d[1]:ph(d[2]))); });
+  s.append(ul);
+  paras(state.intro).forEach(function(t){s.append(h('p',{text:t}))});
+  paras(state.comp).forEach(function(t){s.append(h('p',{text:t}))});
+  s.append(h('h4',{text:'REPORTE DE CUMPLIMIENTO'}),h('hr'));
+  [1,2,3].forEach(function(c){
+    s.append(h('p',{class:'ct',text:CATS[c]}));
+    var l=state.alumnos.filter(function(a){return a.cat===c});
+    if(state.tabla&&l.length){
+      var tb=h('table',{class:'rep'},h('thead',null,h('tr',null,
+        h('th',{text:'Estudiante'}),
+        h('th',null,'Asistencia del representante legal',h('br'),h('span',{class:'sm',text:'(fecha y hora)'})),
+        h('th',{text:'Acuerdos / Compromisos'}),
+        h('th',{text:'Firma del representante legal'}))));
+      var tbd=h('tbody');
+      l.forEach(function(a){tbd.append(h('tr',null,h('td',{text:nm(a)}),h('td'),h('td'),h('td')))});
+      tb.append(tbd); s.append(tb);
+    } else {
+      var u=h('ul',{class:'names'});
+      if(!l.length) u.append(h('li',{text:'Ninguno registrado.'}));
+      l.forEach(function(a){u.append(h('li',{text:nm(a)}))});
+      s.append(u);
+    }
+  });
+  if(state.firma){
+    var sg=[{n:state.docente.trim(),r:'Docente'},{n:state.dirNombre.trim(),r:state.dirCargo}];
+    var g=h('div',{class:'signs'});
+    sg.forEach(function(c){g.append(h('div',{class:'sign',text:c.n}))});
+    sg.forEach(function(c){g.append(h('div',{class:'role',text:c.r}))});
+    s.append(g);
+  }
+}
+
+/* ---------- PDF ---------- */
+function slug(t){return String(t).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-+|-+$/g,'')}
+function fname(){return 'Comunicado_'+slug(state.grado)+'_'+slug(materiaFinal())+'_'+(state.fecha||'')+'.pdf'}
+function makePdf(){
+  var jsPDF=window.jspdf.jsPDF, doc=new jsPDF({unit:'mm',format:'a4',compress:true});
+  var W=210,H=297,M=20,CW=W-2*M,LH=5.6,FS=10.5,y=24;
+  var cl=function(s){return String(s==null?'':s).replace(/[“”«»]/g,'"').replace(/[‘’]/g,"'").replace(/[–—]/g,'-').replace(/…/g,'...').replace(/ /g,' ').replace(/[^\n -ÿ]/g,'')};
+  var font=function(st,sz){doc.setFont('helvetica',st);doc.setFontSize(sz||FS)};
+  var room=function(hh){ if(y+hh>H-M-4){doc.addPage();y=M+4;} };
+  var wrap=function(txt,first,rest){
+    var words=cl(txt).split(/\s+/).filter(Boolean), lines=[], cur='', lim=first;
+    words.forEach(function(w){
+      var t=cur?cur+' '+w:w;
+      if(!cur||doc.getTextWidth(t)<=lim) cur=t; else {lines.push(cur);cur=w;lim=rest;}
+    });
+    if(cur) lines.push(cur);
+    return lines.length?lines:[''];
+  };
+  var bullet=function(x,yy){doc.setFillColor(17,20,24);doc.circle(x,yy-1.25,0.6,'F')};
+  doc.setTextColor(17,20,24);
+  font('bold',14); doc.text(cl('UNIDAD EDUCATIVA "'+state.inst.trim().toLocaleUpperCase('es')+'"'),W/2,y,{align:'center'}); y+=7.5;
+  font('bold',11.5); doc.text('NOTIFICACIÓN AL REPRESENTANTE LEGAL',W/2,y,{align:'center'}); y+=6;
+  doc.text('COMUNICADO DE ACTIVIDADES ACADÉMICAS',W/2,y,{align:'center'}); y+=4.5;
+  doc.setDrawColor(42,47,53); doc.setLineWidth(0.5); doc.line(M,y,W-M,y); y+=9;
+  var rows=[['Fecha',fechaLarga(state.fecha)],['Hora',state.hora],['Grado/Curso',state.grado],['Materia',materiaFinal()],['Docente',state.docente.trim()],['Tema',state.tema.trim()]];
+  if(state.mta) rows.push(['M.T.A.',state.mta]);
+  rows.forEach(function(r){
+    font('bold'); var lab=r[0]+':', lw=doc.getTextWidth(lab);
+    font('normal'); var x0=M+6, lines=wrap(r[1],CW-6-lw-1.8,CW-6);
+    room(lines.length*LH); bullet(M+2,y);
+    font('bold'); doc.text(lab+' ',x0,y); font('normal'); doc.text(lines[0],x0+lw+1.8,y);
+    for(var i=1;i<lines.length;i++){y+=LH;doc.text(lines[i],x0,y)}
+    y+=LH;
+  });
+  y+=3;
+  var para=function(text){
+    font('normal');
+    var lines=wrap(text,CW,CW);
+    lines.forEach(function(ln,i){
+      room(LH);
+      var words=ln.split(' ');
+      if(i===lines.length-1||words.length<2) doc.text(ln,M,y);
+      else doc.text([ln,''],M,y,{align:'justify',maxWidth:CW});
+      y+=LH;
+    });
+    y+=3;
+  };
+  paras(state.intro).forEach(para);
+  paras(state.comp).forEach(para);
+  y+=3; room(34);
+  font('bold',11.5); doc.text('REPORTE DE CUMPLIMIENTO',W/2,y,{align:'center'}); y+=2.5;
+  doc.setDrawColor(140,150,159); doc.setLineWidth(0.25); doc.line(M,y,W-M,y); y+=7;
+  var TW=[48,36,46,40], HH=13, ROWMIN=15;
+  var TH=[['Estudiante'],['Asistencia del','representante legal','(fecha y hora)'],['Acuerdos /','Compromisos'],['Firma del','representante legal']];
+  var tabHead=function(){
+    var x=M;
+    doc.setFillColor(236,239,242); doc.setDrawColor(110,118,126); doc.setLineWidth(0.25);
+    TW.forEach(function(w,i){
+      doc.setFillColor(236,239,242); doc.rect(x,y,w,HH,'FD'); doc.setTextColor(17,20,24);
+      var ls=TH[i], ty=y+HH/2-(ls.length-1)*1.65+1;
+      ls.forEach(function(s,k){ font(i===1&&k===2?'normal':'bold',8); doc.text(cl(s),x+w/2,ty+k*3.3,{align:'center'}); });
+      x+=w;
+    });
+    y+=HH;
+  };
+  [1,2,3].forEach(function(c){
+    var l=state.alumnos.filter(function(a){return a.cat===c}).map(nm);
+    var tabla=state.tabla&&l.length>0;
+    room(tabla?LH+0.8+HH+ROWMIN+2:LH*2+3); font('bold'); doc.text(cl(CATS[c]),M,y); y+=LH+0.8; font('normal');
+    if(tabla){
+      tabHead();
+      l.forEach(function(n){
+        font('normal',9);
+        var lines=wrap(n,TW[0]-4,TW[0]-4), rh=Math.max(ROWMIN,lines.length*4.2+6);
+        if(y+rh>H-M-4){doc.addPage();y=M+4;tabHead();font('normal',9);}
+        var x=M;
+        doc.setDrawColor(110,118,126); doc.setLineWidth(0.25);
+        TW.forEach(function(w){doc.rect(x,y,w,rh,'S');x+=w});
+        var ty=y+rh/2-(lines.length-1)*2.1+1.2;
+        lines.forEach(function(t,k){doc.text(t,M+2,ty+k*4.2)});
+        y+=rh;
+      });
+      font('normal'); y+=4;
+    } else {
+      (l.length?l:['Ninguno registrado.']).forEach(function(n){
+        var lines=wrap(n,CW-6,CW-6); room(lines.length*LH); bullet(M+2,y);
+        lines.forEach(function(t){doc.text(t,M+6,y);y+=LH});
+      });
+    }
+    y+=3;
+  });
+  if(state.firma){
+    var cols=[{n:state.docente.trim(),r:'Docente'},{n:state.dirNombre.trim(),r:state.dirCargo}];
+    font('bold');
+    var wr=cols.map(function(c){return c.n?wrap(c.n,74,74):[]});
+    var nl=Math.max(wr[0].length,wr[1].length);
+    room(18+5+nl*5+10); y+=18;
+    var cx=[M+CW*0.25,M+CW*0.75];
+    doc.setDrawColor(17,20,24); doc.setLineWidth(0.3);
+    cx.forEach(function(x){doc.line(x-33,y,x+33,y)});
+    y+=5;
+    cols.forEach(function(c,i){
+      font('bold'); var yy=y;
+      wr[i].forEach(function(tx){doc.text(tx,cx[i],yy,{align:'center'});yy+=5});
+      font('normal'); doc.text(cl(c.r),cx[i],y+nl*5,{align:'center'});
+    });
+  }
+  var n=doc.getNumberOfPages();
+  if(n>1) for(var p=1;p<=n;p++){ doc.setPage(p); font('normal',8); doc.setTextColor(110,118,126); doc.text('Página '+p+' de '+n,W-M,H-10,{align:'right'}); }
+  return doc.output('blob');
+}
+function validar(){
+  if(!state.inst.trim()) return ['inst','Escribe el nombre de la unidad educativa.'];
+  if(!state.grado) return ['grado','Elige el grado o curso.'];
+  if(!state.materia) return ['materia','Elige la materia.'];
+  if(state.materia==='__otra'&&!state.materiaOtra.trim()) return ['materiaOtra','Escribe el nombre de la materia.'];
+  if(!state.docente.trim()) return ['docente','Escribe el nombre del docente.'];
+  if(!state.tema.trim()) return ['tema','Escribe el tema del comunicado.'];
+  return null;
+}
+function descargar(){
+  var v=validar();
+  if(v){
+    var el=$(v[0]); el.classList.add('invalid'); setTimeout(function(){el.classList.remove('invalid')},2800);
+    el.scrollIntoView({behavior:'smooth',block:'center'}); try{el.focus({preventScroll:true})}catch(e){}
+    toast(v[1]); return;
+  }
+  if(!(window.jspdf&&window.jspdf.jsPDF)){ toast('No se pudo cargar el generador de PDF. Recarga la página e inténtalo de nuevo.'); return; }
+  var blob; try{ blob=makePdf(); }catch(e){ toast('No se pudo generar el PDF. Revisa que los textos no tengan caracteres extraños.'); return; }
+  var name=fname();
+  var useP=(window.claude&&window.claude.use)?window.claude.use('downloads'):Promise.resolve(null);
+  Promise.resolve(useP).catch(function(){return null}).then(function(dl){
+    if(dl){
+      return dl.save({filename:name,data:blob}).then(function(r){
+        toast(r&&r.status==='saved'?'PDF guardado.':'PDF listo.');
+      }).catch(function(e){
+        toast(e&&e.code==='declined'?'Descarga cancelada.':'No se pudo guardar el PDF.');
+      });
+    }
+    var url=URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){URL.revokeObjectURL(url)},4000);
+    toast('PDF descargado.');
+  });
+}
+
+/* ---------- sincronización de formulario ---------- */
+function syncIntro(){
+  if(!state.introEdited){ var b=introBase(); state.intro=b; if($('intro').value!==b) $('intro').value=b; }
+  $('btnReset').hidden=!state.introEdited;
+}
+function syncChips(){
+  CHIPS.forEach(function(c){
+    var b=document.querySelector('[data-chip="'+c[0]+'"]'); if(b) b.setAttribute('aria-pressed',state.comp.indexOf(FR[c[0]]())>=0?'true':'false');
+  });
+}
+function setComp(v){ state.comp=v; $('comp').value=v; syncChips(); renderPreview(); revisar('comp'); save(); }
+function fillSelect(sel,placeholder,groups,flat,extra){
+  sel.textContent='';
+  sel.append(h('option',{value:'',text:placeholder}));
+  if(groups) groups.forEach(function(g){ var og=h('optgroup',{label:g.g}); g.o.forEach(function(o){og.append(h('option',{value:o,text:o}))}); sel.append(og); });
+  if(flat) flat.forEach(function(o){sel.append(h('option',{value:o,text:o}))});
+  if(extra) sel.append(h('option',{value:extra[0],text:extra[1]}));
+}
+function twoStep(btn,confirmText,action){
+  var orig=btn.textContent, armed=false, t;
+  btn.addEventListener('click',function(){
+    if(!armed){ armed=true; btn.textContent=confirmText; t=setTimeout(function(){armed=false;btn.textContent=orig},4000); return; }
+    clearTimeout(t); armed=false; btn.textContent=orig; action();
+  });
+}
+function init(){
+  fillSelect($('grado'),'Seleccionar grado o curso…',GRADOS);
+  fillSelect($('materia'),'Seleccionar materia…',MATERIAS,null,['__otra','Otra materia…']);
+  fillSelect($('mta'),'Sin especificar',null,MTA);
+  $('dia').append.apply($('dia'),DIAS.map(function(d){return h('option',{value:d,text:d.charAt(0).toUpperCase()+d.slice(1)})}));
+  var CARGOS=['Rector/a','Vicerrector/a','Director/a','Subdirector/a','Inspector/a General','Subinspector/a','Coordinador/a'];
+  $('dirCargo').append.apply($('dirCargo'),CARGOS.map(function(d){return h('option',{value:d,text:d})}));
+  CHIPS.forEach(function(c){
+    $('chips').append(h('button',{type:'button',class:'chip','data-chip':c[0],'aria-pressed':'false',text:c[1],onclick:function(){
+      var s=FR[c[0]](), cur=state.comp;
+      if(cur.indexOf(s)>=0){ setComp(cur.replace(s,'').replace(/\n{2,}/g,'\n').replace(/^\s+|\s+$/g,'').replace(/ {2,}/g,' ')); }
+      else setComp(cur.trim()?cur.replace(/\s+$/,'')+' '+s:s);
+    }}));
+  });
+  ['inst','docente','materiaOtra','tema','instr'].forEach(function(k){$(k).value=state[k]});
+  ['grado','materia','mta','dia','horaAt'].forEach(function(k){ $(k).value=state[k]; if($(k).value!==state[k]){state[k]=$(k).value;} });
+  $('comp').value=state.comp; $('mayus').checked=!!state.mayus; $('firma').checked=!!state.firma;
+  if(typeof state.dirNombre!=='string') state.dirNombre='';
+  if(CARGOS.indexOf(state.dirCargo)<0) state.dirCargo='Director/a';
+  $('dirCargo').value=state.dirCargo; $('dirNombre').value=state.dirNombre; $('dirBox').hidden=!state.firma; $('tabla').checked=!!state.tabla; $('auto').checked=!!state.auto;
+  $('fecha').value=state.fecha; $('hora').value=state.hora;
+  if(state.auto) syncClock();
+  $('fecha').disabled=$('hora').disabled=state.auto;
+  $('otraWrap').hidden=state.materia!=='__otra';
+  if(state.introEdited) $('intro').value=state.intro;
+  syncIntro(); syncChips(); renderStudents(); renderPreview();
+  ['tema','intro','comp'].forEach(revisar);
+
+  ['inst','docente','materiaOtra','instr'].forEach(function(k){ $(k).addEventListener('input',function(){state[k]=$(k).value;renderPreview();save()}); });
+  $('tema').addEventListener('input',function(){state.tema=$('tema').value;renderPreview();revisarDeb('tema');save()});
+  $('intro').addEventListener('input',function(){state.intro=$('intro').value;state.introEdited=true;$('btnReset').hidden=false;renderPreview();revisarDeb('intro');save()});
+  $('comp').addEventListener('input',function(){state.comp=$('comp').value;syncChips();renderPreview();revisarDeb('comp');save()});
+  $('btnReset').addEventListener('click',function(){state.introEdited=false;syncIntro();renderPreview();revisar('intro');save()});
+  $('grado').addEventListener('change',function(){state.grado=$('grado').value;renderPreview();save()});
+  $('mta').addEventListener('change',function(){state.mta=$('mta').value;renderPreview();save()});
+  $('materia').addEventListener('change',function(){
+    state.materia=$('materia').value; $('otraWrap').hidden=state.materia!=='__otra';
+    if(state.materia==='__otra') $('materiaOtra').focus();
+    renderPreview();save();
+  });
+  $('dia').addEventListener('change',atencionChange);
+  $('horaAt').addEventListener('change',atencionChange);
+  $('horaAt').addEventListener('input',atencionChange);
+  var lastAt=FR.atencion();
+  function atencionChange(){
+    var old=lastAt; state.dia=$('dia').value; state.horaAt=$('horaAt').value||'13:30'; lastAt=FR.atencion();
+    if(state.comp.indexOf(old)>=0) setComp(state.comp.replace(old,lastAt)); else {syncChips();save();}
+  }
+  $('auto').addEventListener('change',function(){
+    state.auto=$('auto').checked; $('fecha').disabled=$('hora').disabled=state.auto;
+    if(state.auto) syncClock(); renderPreview(); save();
+  });
+  $('fecha').addEventListener('input',function(){state.fecha=$('fecha').value;renderPreview();save()});
+  $('hora').addEventListener('input',function(){state.hora=$('hora').value;renderPreview();save()});
+  $('mayus').addEventListener('change',function(){state.mayus=$('mayus').checked;renderStudents();renderPreview();save()});
+  $('firma').addEventListener('change',function(){state.firma=$('firma').checked;$('dirBox').hidden=!state.firma;renderPreview();save()});
+  $('dirNombre').addEventListener('input',function(){state.dirNombre=$('dirNombre').value;renderPreview();save()});
+  $('dirCargo').addEventListener('change',function(){state.dirCargo=$('dirCargo').value;renderPreview();save()});
+  $('tabla').addEventListener('change',function(){state.tabla=$('tabla').checked;renderPreview();save()});
+  $('btnCargar').addEventListener('click',function(){cargar($('lista').value)});
+  $('lista').addEventListener('paste',function(){ setTimeout(function(){ if($('lista').value.trim()) cargar($('lista').value); },0); });
+  $('btnEjemplo').addEventListener('click',function(){ cargar('1. PÉREZ LÓPEZ ANA SOFÍA\n2. QUISPE MORA DIEGO ARMANDO\n3. RAMOS TORRES VALERIA LUCÍA\n4. SALAZAR CRUZ MATEO JOSUÉ\n5. TORRES VEGA CAMILA ISABEL\n6. VERA ANDRADE LUIS FERNANDO'); toast('Lista de ejemplo cargada. Usa «Vaciar estudiantes» para quitarla.'); });
+  twoStep($('btnVaciar'),'¿Seguro? Pulsa otra vez',function(){state.alumnos=[];afterStudents();toast('Lista de estudiantes vaciada.')});
+  twoStep($('btnNuevo'),'¿Borrar tema y estudiantes? Pulsa otra vez',function(){
+    state.tema='';state.mta='';state.alumnos=[];state.introEdited=false;state.instr='';
+    $('tema').value='';$('mta').value='';$('instr').value='';
+    setComp(FR.atencion());
+    afterStudents(); revisar('tema'); $('sg-tema').hidden=$('sg-intro').hidden=$('sg-comp').hidden=true;
+    window.scrollTo({top:0,behavior:'smooth'}); toast('Listo para un nuevo comunicado.');
+  });
+  document.querySelectorAll('.js-pdf').forEach(function(b){b.addEventListener('click',descargar)});
+  document.querySelectorAll('.js-claude').forEach(function(b){b.addEventListener('click',function(){claudeRun(b.dataset.k)})});
+  setInterval(function(){ if(syncClock()) renderPreview(); },15000);
+}
+init();
+})();
+</script>
+</body>
+</html>
